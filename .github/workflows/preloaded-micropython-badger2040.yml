@@ -1,6 +1,6 @@
-name: GitHub's MicroPython build for Badger2040 preloaded with data
+name: User's custom UF2
 
-run-name: Custom UF2 -> ${{ inputs.github_handle }}
+run-name: Custom UF2 for ${{ inputs.github_handle }}
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: GitHub's MicroPython build for Badger2040
+name: Micropython Build
 
 on:
   push:

@@ -37,3 +37,5 @@ shutil.copy(f'script/build/{GH_HANDLE}/contribution_page_2.txt', 'micropython/ex
 
 # Replace default gh_qrcode.png file
 shutil.copy(f'script/build/{GH_HANDLE}/gh_qrcode.png', 'micropython/examples/badger2040/assets/gh_qrcode.png')
+
+print(f"\nReplaced all badge defaults\n")
