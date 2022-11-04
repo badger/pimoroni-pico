@@ -34,6 +34,7 @@ parser.add_argument('--out_dir', type=Path, default=None, help='output directory
 parser.add_argument('--binary', action="store_true", help='output binary file for MicroPython')
 parser.add_argument('--py', action="store_true", help='output .py file for MicroPython embedding')
 parser.add_argument('--resize', action="store_true", help='force images to 296x128 pixels')
+parser.add_argument('--qr_resize', action="store_true", help='force images to 296x128 pixels')
 
 options = parser.parse_args()
 
@@ -78,7 +79,9 @@ class ByteWriter(object):
 
 
 def convert_image(img):
-    if options.resize:
+    if options.qr_resize:
+        img = img.resize((112, 112))
+    elif options.resize: 
         img = img.resize((296, 128))  # resize
     try:
         enhancer = ImageEnhance.Contrast(img)

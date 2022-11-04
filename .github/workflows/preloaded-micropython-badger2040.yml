@@ -1,16 +1,26 @@
-name: GitHub's MicroPython build for Badger2040
+name: GitHub's MicroPython build for Badger2040 preloaded with data
+
+run-name: Custom UF2 -> ${{ inputs.github_handle }}
 
 on:
-  push:
-  pull_request:
-  release:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      github_handle:
+        description: 'GitHub handle of the user, without the @'
+        required: true
+        default: 'Octomerger'
+        type: string
+      full_name:
+        description: 'First name and last name of the user'
+        required: true
+        default: 'Mona Octocat'
+        type: string
 
 env:
   MICROPYTHON_VERSION: 9dfabcd6d3d080aced888e8474e921f11dc979bb
   BOARD_TYPE: PIMORONI_BADGER2040
   # MicroPython version will be contained in github.event.release.tag_name for releases
-  RELEASE_FILE: github-badger2040-${{github.event.release.tag_name || github.sha}}-micropython
+  RELEASE_FILE: github-badger2040-${{ inputs.github_handle }}-micropython
 
 jobs:
   deps:
@@ -72,6 +82,16 @@ jobs:
       with:
         submodules: true
         path: pimoroni-pico-${{ github.sha }}
+    
+    - name: Fetch data for the user
+      env:
+        GH_HANDLE: "${{ inputs.github_handle }}"
+        FULL_NAME: "${{ inputs.full_name }}"
+      working-directory: pimoroni-pico-${{ github.sha }}
+      run: |
+        python3 -m pip install -r script/requirements.txt
+        python3 script/create_badge.py --handle "${GH_HANDLE}" --name "${FULL_NAME}"
+        python3 script/replace_badge_defaults.py
 
     - name: "HACK: MicroPython Board Fixups"
       shell: bash
@@ -112,14 +132,3 @@ jobs:
       with:
         name: ${{env.RELEASE_FILE}}.uf2
         path: micropython/ports/rp2/build-${{env.BOARD_TYPE}}/${{env.RELEASE_FILE}}.uf2
-
-    - name: Upload .uf2
-      if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      with:
-        asset_path: micropython/ports/rp2/build-${{env.BOARD_TYPE}}/${{env.RELEASE_FILE}}.uf2
-        upload_url: ${{github.event.release.upload_url}}
-        asset_name: ${{env.RELEASE_FILE}}.uf2
-        asset_content_type: application/octet-stream

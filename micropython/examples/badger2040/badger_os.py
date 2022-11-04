@@ -48,7 +48,7 @@ def get_disk_usage():
 
 
 def state_running():
-    state = {"running": "launcher"}
+    state = {"running": "badge"}
     state_load("launcher", state)
     return state["running"]
 

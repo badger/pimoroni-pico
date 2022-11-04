@@ -1,58 +1,38 @@
 import time
 import badger2040
 import badger_os
+import machine
+import json
+import contribution_graph
 
 # Global Constants
 WIDTH = badger2040.WIDTH
 HEIGHT = badger2040.HEIGHT
 
-IMAGE_WIDTH = 104
+# Size of QR Code 
+QRCODE_SIZE = 112
 
-COMPANY_HEIGHT = 30
-DETAILS_HEIGHT = 20
-NAME_HEIGHT = HEIGHT - COMPANY_HEIGHT - (DETAILS_HEIGHT * 2) - 2
-TEXT_WIDTH = WIDTH - IMAGE_WIDTH - 1
+# Will be replaced with badge.txt
+DEFAULT_TEXT = """Universe 2022
+Mona
+Octocat
+@github"""
 
-COMPANY_TEXT_SIZE = 0.6
-DETAILS_TEXT_SIZE = 0.5
+# Allocate memory to load QR Code image 
+QRCODE = bytearray(int(QRCODE_SIZE * QRCODE_SIZE / 8))
 
-LEFT_PADDING = 5
-NAME_PADDING = 20
-DETAIL_SPACING = 10
+CURRENT_PAGE = 0 # 0=Badge; 1=contribution graph
 
-DEFAULT_TEXT = """mustelid inc
-H. Badger
-RP2040
-2MB Flash
-E ink
-296x128px"""
-
-BADGE_IMAGE = bytearray(int(IMAGE_WIDTH * HEIGHT / 8))
-
+# Load QR Code image
 try:
-    open("badge-image.bin", "rb").readinto(BADGE_IMAGE)
+    open("gh_qrcode.bin","rb").readinto(QRCODE)
 except OSError:
     try:
-        import badge_image
-        BADGE_IMAGE = bytearray(badge_image.data())
-        del badge_image
+        import gh_qrcode
+        QRCODE = bytearray(gh_qrcode.data())
+        del gh_qrcode
     except ImportError:
         pass
-
-
-# ------------------------------
-#      Utility functions
-# ------------------------------
-
-# Reduce the size of a string until it fits within a given width
-def truncatestring(text, text_size, width):
-    while True:
-        length = display.measure_text(text, text_size)
-        if length > 0 and length > width:
-            text = text[:-1]
-        else:
-            text += ""
-            return text
 
 
 # ------------------------------
@@ -61,71 +41,77 @@ def truncatestring(text, text_size, width):
 
 # Draw the badge, including user text
 def draw_badge():
+
+    
+    #Draw white background
+    display.pen(15)
+    display.rectangle(0,0, WIDTH, HEIGHT)
+    
+    #QR CODE
+    display.image(QRCODE, QRCODE_SIZE,QRCODE_SIZE,WIDTH-100,28)
+    
+    # Draw header background
     display.pen(0)
-    display.clear()
-
-    # Draw badge image
-    display.image(BADGE_IMAGE, IMAGE_WIDTH, HEIGHT, WIDTH - IMAGE_WIDTH, 0)
-
-    # Draw a border around the image
-    display.pen(0)
-    display.thickness(1)
-    display.line(WIDTH - IMAGE_WIDTH, 0, WIDTH - 1, 0)
-    display.line(WIDTH - IMAGE_WIDTH, 0, WIDTH - IMAGE_WIDTH, HEIGHT - 1)
-    display.line(WIDTH - IMAGE_WIDTH, HEIGHT - 1, WIDTH - 1, HEIGHT - 1)
-    display.line(WIDTH - 1, 0, WIDTH - 1, HEIGHT - 1)
-
-    # Uncomment this if a white background is wanted behind the company
-    # display.pen(15)
-    # display.rectangle(1, 1, TEXT_WIDTH, COMPANY_HEIGHT - 1)
-
-    # Draw the company
-    display.pen(15)  # Change this to 0 if a white background is used
+    display.rectangle(0,0,WIDTH,30)
+    
+    # Draw header text
+    display.pen(15)
     display.font("serif")
-    display.thickness(3)
-    display.text(company, LEFT_PADDING, (COMPANY_HEIGHT // 2) + 1, COMPANY_TEXT_SIZE)
-
-    # Draw a white background behind the name
-    display.pen(15)
-    display.thickness(1)
-    display.rectangle(1, COMPANY_HEIGHT + 1, TEXT_WIDTH, NAME_HEIGHT)
-
-    # Draw the name, scaling it based on the available width
+    display.thickness(2)
+    display.text(title, 70, 16, 0.6)
+    
+    # Draw GitHub handle text
     display.pen(0)
     display.font("sans")
-    display.thickness(4)
-    name_size = 2.0  # A sensible starting scale
-    while True:
-        name_length = display.measure_text(name, name_size)
-        if name_length >= (TEXT_WIDTH - NAME_PADDING) and name_size >= 0.1:
-            name_size -= 0.01
-        else:
-            display.text(name, (TEXT_WIDTH - name_length) // 2, (NAME_HEIGHT // 2) + COMPANY_HEIGHT + 1, name_size)
-            break
-
-    # Draw a white backgrounds behind the details
-    display.pen(15)
-    display.thickness(1)
-    display.rectangle(1, HEIGHT - DETAILS_HEIGHT * 2, TEXT_WIDTH, DETAILS_HEIGHT - 1)
-    display.rectangle(1, HEIGHT - DETAILS_HEIGHT, TEXT_WIDTH, DETAILS_HEIGHT - 1)
-
-    # Draw the first detail's title and text
-    display.pen(0)
-    display.font("sans")
-    display.thickness(3)
-    name_length = display.measure_text(detail1_title, DETAILS_TEXT_SIZE)
-    display.text(detail1_title, LEFT_PADDING, HEIGHT - ((DETAILS_HEIGHT * 3) // 2), DETAILS_TEXT_SIZE)
     display.thickness(2)
-    display.text(detail1_text, 5 + name_length + DETAIL_SPACING, HEIGHT - ((DETAILS_HEIGHT * 3) // 2), DETAILS_TEXT_SIZE)
-
-    # Draw the second detail's title and text
-    display.thickness(3)
-    name_length = display.measure_text(detail2_title, DETAILS_TEXT_SIZE)
-    display.text(detail2_title, LEFT_PADDING, HEIGHT - (DETAILS_HEIGHT // 2), DETAILS_TEXT_SIZE)
+    display.text(github_handle, 8, 114, 0.65)
+    
+    # Draw Line
     display.thickness(2)
-    display.text(detail2_text, LEFT_PADDING + name_length + DETAIL_SPACING, HEIGHT - (DETAILS_HEIGHT // 2), DETAILS_TEXT_SIZE)
+    display.line(8, 94, WIDTH-116, 94)
+    
+    # Draw name
+    display.thickness(3)
+    display.text(first_name, 8, 50, 0.75)
+    display.text(last_name, 8, 74, 0.75)
 
 
+def draw_page():
+# match case not available, using if-else
+    if CURRENT_PAGE == 0:
+        draw_badge()
+    elif CURRENT_PAGE == 1 or CURRENT_PAGE == 2:
+        contribution_graph.draw_contribution_graph(display)
+    display.update()
+
+
+def open_launcher():
+    # Changing state to set running application as launcher
+    state = {"running": "launcher", "page": 1}
+    
+    # Saving the state file
+    try:
+        with open("/state/launcher.json", "w") as f:
+            f.write(json.dumps(state))
+            f.flush()
+            
+    except OSError:
+        # State file does not exist, create it
+        import os
+        try:
+            os.stat("/state")
+        except OSError:
+            os.mkdir("/state")
+            state_save("launcher", state)
+    
+    # Clear the display and reset device
+    display.update_speed(badger2040.UPDATE_TURBO)
+    display.clear()
+    display.update()
+    machine.reset()
+    
+    
+    
 # ------------------------------
 #        Program setup
 # ------------------------------
@@ -144,40 +130,50 @@ except OSError:
         f.flush()
     badge = open("badge.txt", "r")
 
-# Read in the next 6 lines
-company = badge.readline()        # "mustelid inc"
-name = badge.readline()           # "H. Badger"
-detail1_title = badge.readline()  # "RP2040"
-detail1_text = badge.readline()   # "2MB Flash"
-detail2_title = badge.readline()  # "E ink"
-detail2_text = badge.readline()   # "296x128px"
+# Read in the next 3 lines
+title = badge.readline()        # "Universe 2022"
+first_name = badge.readline().upper()   # "Mona"
+last_name = badge.readline().upper()    # "Octocat"
+github_handle = badge.readline()# "@github"
 
-# Truncate all of the text (except for the name as that is scaled)
-company = truncatestring(company, COMPANY_TEXT_SIZE, TEXT_WIDTH)
 
-detail1_title = truncatestring(detail1_title, DETAILS_TEXT_SIZE, TEXT_WIDTH)
-detail1_text = truncatestring(detail1_text, DETAILS_TEXT_SIZE,
-                              TEXT_WIDTH - DETAIL_SPACING - display.measure_text(detail1_title, DETAILS_TEXT_SIZE))
-
-detail2_title = truncatestring(detail2_title, DETAILS_TEXT_SIZE, TEXT_WIDTH)
-detail2_text = truncatestring(detail2_text, DETAILS_TEXT_SIZE,
-                              TEXT_WIDTH - DETAIL_SPACING - display.measure_text(detail2_title, DETAILS_TEXT_SIZE))
 
 
 # ------------------------------
 #       Main program
 # ------------------------------
 
-draw_badge()
+draw_page()
 
 while True:
-    if display.pressed(badger2040.BUTTON_A) or display.pressed(badger2040.BUTTON_B) or display.pressed(badger2040.BUTTON_C) or display.pressed(badger2040.BUTTON_UP) or display.pressed(badger2040.BUTTON_DOWN):
-        badger_os.warning(display, "To change the text, connect Badger2040 to a PC, load up Thonny, and modify badge.txt")
-        time.sleep(4)
+    
+    
+    # Buttons UP / DOWN to view previous / next page of contribution graph
+    if CURRENT_PAGE == 1 and (display.pressed(badger2040.BUTTON_DOWN) or display.pressed(badger2040.BUTTON_UP)):
+        contribution_graph.CONTRIBUTION_GRAPH_PAGE = 1 if contribution_graph.CONTRIBUTION_GRAPH_PAGE == 0 else 0
+        draw_page()
 
-        draw_badge()
+    # Button A opens launcher
+    elif display.pressed(badger2040.BUTTON_A):
+        open_launcher()
+    
+    # Button B sets current page to Badge
+    elif CURRENT_PAGE != 0 and display.pressed(badger2040.BUTTON_B):
+        CURRENT_PAGE = 0
+        draw_page()
+        
+    # Button C sets current page to Contribution Graph
+    elif CURRENT_PAGE != 1 and display.pressed(badger2040.BUTTON_C):
+        CURRENT_PAGE = 1
+        contribution_graph.CONTRIBUTION_GRAPH_PAGE = 0
+        draw_page()
+        
+    # if incorrect button pressed, show popup info for 5 seconds
+    elif display.pressed(badger2040.BUTTON_A) or display.pressed(badger2040.BUTTON_B) or display.pressed(badger2040.BUTTON_C) or display.pressed(badger2040.BUTTON_UP) or display.pressed(badger2040.BUTTON_DOWN):
+        badger_os.warning(display, "a = launcher   b = badge   c = contributions")
+        time.sleep(5)
+        draw_page()
 
-    display.update()
 
     # If on battery, halt the Badger to save power, it will wake up if any of the front buttons are pressed
     display.halt()
