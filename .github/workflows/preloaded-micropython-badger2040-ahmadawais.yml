@@ -1,0 +1,134 @@
+name: ahmadawais's custom UF2
+
+run-name: Custom UF2 for ${{ inputs.github_handle }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_handle:
+        description: 'ahmadawais'
+        required: true
+        default: 'Octomerger'
+        type: string
+      full_name:
+        description: 'Ahmad Awais'
+        required: true
+        default: 'Mona Octocat'
+        type: string
+
+env:
+  MICROPYTHON_VERSION: 9dfabcd6d3d080aced888e8474e921f11dc979bb
+  BOARD_TYPE: PIMORONI_BADGER2040
+  # MicroPython version will be contained in github.event.release.tag_name for releases
+  RELEASE_FILE: github-badger2040-${{ inputs.github_handle }}-micropython
+
+jobs:
+  deps:
+    runs-on: ubuntu-20.04
+    name: Dependencies
+    steps:
+    - name: Workspace Cache
+      id: cache
+      uses: actions/cache@v2
+      with:
+        path: ${{runner.workspace}}
+        key: workspace-micropython-${{env.MICROPYTHON_VERSION}}
+        restore-keys: |
+          workspace-micropython-${{env.MICROPYTHON_VERSION}}
+
+    # Check out MicroPython
+    - name: Checkout MicroPython
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/checkout@v2
+      with:
+        repository: micropython/micropython
+        ref: ${{env.MICROPYTHON_VERSION}}
+        submodules: false  # MicroPython submodules are hideously broken
+        path: micropython
+
+    - name: Fetch base MicroPython submodules
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: micropython
+      run: git submodule update --init
+
+    - name: Fetch Pico SDK submodules
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: micropython/lib/pico-sdk
+      run: git submodule update --init
+
+    - name: Build mpy-cross
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: micropython/mpy-cross
+      run: make
+
+  build:
+    needs: deps
+    name: Build Badger 2040
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Workspace Cache
+      uses: actions/cache@v2
+      with:
+        path: ${{runner.workspace}}
+        key: workspace-micropython-${{env.MICROPYTHON_VERSION}}
+        restore-keys: |
+          workspace-micropython-${{env.MICROPYTHON_VERSION}}
+
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+        path: pimoroni-pico-${{ github.sha }}
+    
+    - name: Fetch data for the user
+      env:
+        GH_HANDLE: "${{ inputs.github_handle }}"
+        FULL_NAME: "${{ inputs.full_name }}"
+      working-directory: pimoroni-pico-${{ github.sha }}
+      run: |
+        python3 -m pip install -r script/requirements.txt
+        python3 script/create_badge.py --handle "${GH_HANDLE}" --name "${FULL_NAME}"
+        python3 script/replace_badge_defaults.py
+
+    - name: "HACK: MicroPython Board Fixups"
+      shell: bash
+      working-directory: micropython/ports/rp2
+      run: |
+        ../../../pimoroni-pico-${GITHUB_SHA}/micropython/_board/board-fixup.sh badger2040 ${{env.BOARD_TYPE}} ../../../pimoroni-pico-${GITHUB_SHA}/micropython/_board
+
+    # Linux deps
+    - name: Install Compiler & CCache
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt update && sudo apt install ccache gcc-arm-none-eabi
+        python3 -m pip install pillow
+
+     # Build with BadgerOS
+    - name: Configure MicroPython
+      shell: bash
+      working-directory: micropython/ports/rp2
+      run: |
+        cmake -S . -B build-${{env.BOARD_TYPE}} -DPICO_BUILD_DOCS=0 -DUSER_C_MODULES=../../../pimoroni-pico-${GITHUB_SHA}/micropython/modules/badger2040-micropython.cmake -DMICROPY_BOARD=${{env.BOARD_TYPE}} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+    - name: Build MicroPython
+      shell: bash
+      working-directory: micropython/ports/rp2
+      run: |
+        ccache --zero-stats || true
+        cmake --build build-${{env.BOARD_TYPE}} -j 2
+        ccache --show-stats || true
+
+    - name: Rename .uf2 for artifact
+      shell: bash
+      working-directory: micropython/ports/rp2/build-${{env.BOARD_TYPE}}
+      run: |
+        cp firmware.uf2 ${{env.RELEASE_FILE}}.uf2
+
+    - name: Store .uf2 as artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{env.RELEASE_FILE}}.uf2
+        path: micropython/ports/rp2/build-${{env.BOARD_TYPE}}/${{env.RELEASE_FILE}}.uf2
