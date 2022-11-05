@@ -48,7 +48,7 @@ def parse_profile_data(html):
         quit()
 
     name = name_nodes[0].text.strip() if args.name is None else args.name
-    username = username_nodes[0].text.strip()
+    username = username_nodes[0].text.strip().lower()
 
     names = name.split(" ")
     first_name = names[0]
