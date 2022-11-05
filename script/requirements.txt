@@ -1,0 +1,5 @@
+Pillow
+lxml
+requests
+qrcode[pil]
+argparse
