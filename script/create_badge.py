@@ -88,13 +88,16 @@ def parse_contributions_data(html):
     # however we can display only 182 days per page (i.e. 364 days)
     # so ignore the earliest 5 days
 
+    DAYS_PER_PAGE = 182
+
     # Writing latest 6 months to page 1
     with open(f"script/build/{username}/contribution_page_1.txt", "w") as contributions_file:
         total = 0
         graph_data = ""
-        start_date = rect_nodes[187+week_position_offset].xpath("string(@data-date)")
+        start_position = len(rect_nodes)-DAYS_PER_PAGE+week_position_offset
+        start_date = rect_nodes[start_position].xpath("string(@data-date)")
         end_date = rect_nodes[len(rect_nodes)-1].xpath("string(@data-date)")
-        for i in range(187+week_position_offset,len(rect_nodes)):
+        for i in range(start_position,len(rect_nodes)):
             total += int(rect_nodes[i].xpath("string(@data-count)"))
             data_level = rect_nodes[i].xpath("string(@data-level)")
             graph_data+=f"\n{data_level}"
@@ -108,10 +111,12 @@ def parse_contributions_data(html):
     with open(f"script/build/{username}/contribution_page_2.txt", "w") as contributions_file:
         total = 0
         graph_data = ""
-        start_date = rect_nodes[4+week_position_offset].xpath("string(@data-date)")
-        end_date = rect_nodes[186+week_position_offset].xpath("string(@data-date)")
+        start_position = len(rect_nodes)-(DAYS_PER_PAGE*2)+week_position_offset
+        end_position = start_position+DAYS_PER_PAGE
+        start_date = rect_nodes[start_position].xpath("string(@data-date)")
+        end_date = rect_nodes[end_position-1].xpath("string(@data-date)")
         
-        for i in range(4+week_position_offset,186+week_position_offset):
+        for i in range(start_position,end_position):
             total += int(rect_nodes[i].xpath("string(@data-count)"))
             data_level = rect_nodes[i].xpath("string(@data-level)")
             graph_data+=f"\n{data_level}"
